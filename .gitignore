@@ -1,0 +1,43 @@
+# Ignore the Go binary files
+/bin/
+/obj/
+
+/messages/
+
+# Ignore Go test binary
+*.test
+
+# Ignore coverage reports
+*.out
+
+# Ignore Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Ignore editor files
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Ignore Go workspace file
+go.work
+
+# Ignore IDE files
+*.iml
+*.sublime-workspace
+*.sublime-project
+
+# Ignore logs and temp files
+*.log
+*.tmp
+
+# Ignore compiled Go files
+*.a
+*.cgo1.go
+*.h
+*.o
+*.prof
