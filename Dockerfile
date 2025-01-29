@@ -11,8 +11,8 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /app
 
 # Create storage directory
-RUN mkdir -p /app/storage/voices /app/storage/texts
-VOLUME ["/app/storage"]
+RUN mkdir -p /messages/voices /messages/texts
+VOLUME ["/messages"]
 
 COPY --from=builder /app/main .
 COPY --from=builder /app/.env .

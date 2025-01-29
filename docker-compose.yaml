@@ -6,10 +6,10 @@ services:
     container_name: telegram_bot
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - STORAGE_PATH=/app/storage
+      - STORAGE_PATH=/messages
       - DEBUG=false
     volumes:
-      - ./storage:/app/storage
+      - ./messages:/messages
     networks:
       - bot_network
     restart: unless-stopped
