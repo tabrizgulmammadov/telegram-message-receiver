@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,14 @@ import (
 type MessageStorage interface {
 	SaveVoiceMessage(chatID int64, username string, reader io.Reader, timestamp time.Time) error
 	SaveTextMessage(chatID int64, username string, text string, timestamp time.Time) error
+	SaveContactInfo(chatID int64, username string, phoneNumber string, timestamp time.Time) error
+	HasContactInfo(chatID int64) (bool, error)
+}
+
+type ContactInfo struct {
+	Username    string    `json:"username"`
+	PhoneNumber string    `json:"phone_number"`
+	Timestamp   time.Time `json:"timestamp"`
 }
 
 type LocalStorage struct {
@@ -66,5 +75,43 @@ func (s *LocalStorage) SaveTextMessage(chatID int64, username string, text strin
 	}
 
 	fmt.Printf("Text message saved: %s\n", filePath)
+	return nil
+}
+
+func (s *LocalStorage) HasContactInfo(chatID int64) (bool, error) {
+	filePath := filepath.Join(s.basePath, "contacts", fmt.Sprintf("%d.json", chatID))
+	_, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("error checking contact info: %v", err)
+	}
+	return true, nil
+}
+
+func (s *LocalStorage) SaveContactInfo(chatID int64, username string, phoneNumber string, timestamp time.Time) error {
+	contactsFolder := filepath.Join(s.basePath, "contacts")
+	if err := os.MkdirAll(contactsFolder, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create directory: %v", err)
+	}
+
+	contactInfo := ContactInfo{
+		Username:    username,
+		PhoneNumber: phoneNumber,
+		Timestamp:   timestamp,
+	}
+
+	filePath := filepath.Join(contactsFolder, fmt.Sprintf("%d.json", chatID))
+
+	data, err := json.MarshalIndent(contactInfo, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal contact info: %v", err)
+	}
+
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return fmt.Errorf("failed to save contact info: %v", err)
+	}
+
 	return nil
 }
