@@ -1,4 +1,3 @@
-// handler/handler.go
 package handler
 
 import (
@@ -42,24 +41,95 @@ func (h *MessageHandler) HandleMessage(message *tgbotapi.Message) error {
 	// Log message receipt
 	h.logger.Debug("Received message from %s (Chat ID: %d)", username, message.Chat.ID)
 
+	// Check if user has shared contact info (except for contact sharing message)
+	if message.Contact == nil {
+		hasContact, err := h.storage.HasContactInfo(message.Chat.ID)
+		if err != nil {
+			h.logger.Error("Error checking contact info: %v", err)
+			return err
+		}
+
+		if !hasContact {
+			return h.requestContact(message.Chat.ID)
+		}
+	}
+
 	switch {
+	case message.Contact != nil:
+		return h.handleContactMessage(message)
 	case message.Voice != nil:
 		return h.handleVoiceMessage(message.Chat.ID, username, message.Voice, timestamp)
+	case message.Text == "/start":
+		return h.handleStartCommand(message.Chat.ID)
 	case message.Text != "":
 		return h.handleTextMessage(message.Chat.ID, username, message.Text, timestamp)
 	default:
 		h.logger.Info("Unsupported message type received from %s", username)
 		return nil
 	}
+}
 
-	msg := tgbotapi.NewMessage(message.Chat.ID, h.config.AcknowledgmentMessage)
-	_, err := h.bot.Send(msg)
-	if err != nil {
-		h.logger.Error("Failed to send confirmation message: %v", err)
+func (h *MessageHandler) handleContactMessage(message *tgbotapi.Message) error {
+	if message.Contact == nil {
+		return fmt.Errorf("no contact information in message")
+	}
+
+	username := h.sanitizeUsername(message.From.UserName)
+	h.logger.Debug("Processing contact information from %s", username)
+
+	// Verify that the shared contact belongs to the user
+	if message.Contact.UserID != 0 && message.Contact.UserID != message.From.ID {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Please share your own contact information.")
+		_, err := h.bot.Send(msg)
 		return err
 	}
 
-	return nil
+	// Save contact information
+	if err := h.storage.SaveContactInfo(message.Chat.ID, username, message.Contact.PhoneNumber, time.Now()); err != nil {
+		return fmt.Errorf("failed to save contact information: %w", err)
+	}
+
+	// Remove contact keyboard and send welcome message
+	msg := tgbotapi.NewMessage(message.Chat.ID, "Thank you! You can now use the bot freely. Send me any message or voice recording.")
+	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+	_, err := h.bot.Send(msg)
+	return err
+}
+
+func (h *MessageHandler) handleStartCommand(chatID int64) error {
+	hasContact, err := h.storage.HasContactInfo(chatID)
+	if err != nil {
+		h.logger.Error("Error checking contact info: %v", err)
+		return err
+	}
+
+	if hasContact {
+		welcomeText := `Welcome back! 👋
+						You can:
+						• Send text messages
+						• Send voice messages`
+
+		msg := tgbotapi.NewMessage(chatID, welcomeText)
+		_, err := h.bot.Send(msg)
+		return err
+	}
+
+	return h.requestContact(chatID)
+}
+
+func (h *MessageHandler) requestContact(chatID int64) error {
+	keyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButtonContact("📱 Share Contact"),
+		),
+	)
+	keyboard.OneTimeKeyboard = true
+	keyboard.ResizeKeyboard = true
+
+	msg := tgbotapi.NewMessage(chatID, "👋 Welcome! To start using this bot, please share your contact information:")
+	msg.ReplyMarkup = keyboard
+	_, err := h.bot.Send(msg)
+	return err
 }
 
 func (h *MessageHandler) handleVoiceMessage(chatID int64, username string, voice *tgbotapi.Voice, timestamp time.Time) error {
